@@ -1,0 +1,36 @@
+- name: Install Node Exporter
+  hosts: azure_vm
+  become: yes
+  tasks:
+    - name: Download node exporter
+      ansible.builtin.get_url:
+        url: https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz
+        dest: /tmp/node_exporter.tar.gz
+
+    - name: Extract node exporter
+      ansible.builtin.unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /usr/local/bin/
+        remote_src: yes
+        creates: /usr/local/bin/node_exporter-1.7.0.linux-amd64/node_exporter
+
+    - name: Create node_exporter service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/node_exporter.service
+        content: |
+          [Unit]
+          Description=Node Exporter
+          After=network.target
+
+          [Service]
+          User=root
+          ExecStart=/usr/local/bin/node_exporter-1.7.0.linux-amd64/node_exporter
+
+          [Install]
+          WantedBy=default.target
+
+    - name: Start and enable node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        enabled: yes
+        state: started

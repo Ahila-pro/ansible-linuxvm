@@ -1,0 +1,77 @@
+---
+- name: Install Prometheus on Azure VM
+  hosts: azure_vm
+  become: yes
+  tasks:
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - wget
+          - tar
+        state: present
+
+    - name: Download Prometheus
+      ansible.builtin.get_url:
+        url: https://github.com/prometheus/prometheus/releases/download/v2.47.0/prometheus-2.47.0.linux-amd64.tar.gz
+        dest: /tmp/prometheus.tar.gz
+
+    - name: Extract Prometheus
+      ansible.builtin.unarchive:
+        src: /tmp/prometheus.tar.gz
+        dest: /opt/
+        remote_src: yes
+
+    - name: Move Prometheus binaries to /usr/local/bin
+      ansible.builtin.command: >
+        mv /opt/prometheus-2.47.0.linux-amd64/prometheus
+        /usr/local/bin/prometheus
+      args:
+        creates: /usr/local/bin/prometheus
+
+    - name: Move Prometheus binaries to /usr/local/bin (promtool)
+      ansible.builtin.command: >
+        mv /opt/prometheus-2.47.0.linux-amd64/promtool
+        /usr/local/bin/promtool
+      args:
+        creates: /usr/local/bin/promtool
+
+    - name: Copy Prometheus config
+      ansible.builtin.copy:
+        dest: /opt/prometheus.yml
+        content: |
+          global:
+            scrape_interval: 15s
+
+          scrape_configs:
+            - job_name: 'node_exporter'
+              static_configs:
+                - targets: ['localhost:9100']
+
+    - name: Create Prometheus service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/prometheus.service
+        content: |
+          [Unit]
+          Description=Prometheus Monitoring
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/prometheus --config.file=/opt/prometheus.yml
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Start and enable Prometheus service
+      ansible.builtin.systemd:
+        name: prometheus
+        enabled: yes
+        state: started
+    - name: Verify Prometheus installation
+      ansible.builtin.command: prometheus --version   

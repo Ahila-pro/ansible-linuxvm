@@ -1,0 +1,26 @@
+---
+- name: Update and verify packages on Azure VM
+  hosts: azure_vm
+  become: yes
+  tasks:
+
+    - name: Gather Facts
+      ansible.builtin.setup:
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: Check for pending upgrades
+      ansible.builtin.shell: |
+        apt list --upgradable 2>/dev/null | tail -n +2
+      register: upgrades
+      changed_when: false
+
+    - name: Show pending upgrades
+      ansible.builtin.debug:
+        msg: "{{ upgrades.stdout_lines if upgrades.stdout_lines else 'All packages are up-to-date' }}"
